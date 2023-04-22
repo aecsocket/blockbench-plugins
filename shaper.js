@@ -1,5 +1,7 @@
 (function() {
 
+// Utils
+
 /**
  * @typedef {"x" | "y" | "z"} Axis
  */
@@ -18,6 +20,40 @@ const CREATE_SHAPE_SETTINGS = "shaper:create_shape_settings"
 
 const PI = Math.PI
 const HALF_PI = PI / 2.0
+
+/**
+ * @param {[number]} a 
+ * @param {[number]} b 
+ * @returns {[number]}
+ */
+function add(a, b) {
+  return [
+    a[0] + b[0],
+    a[1] + b[1],
+    a[2] + b[2],
+  ]
+}
+
+/**
+ * @param {[number]} a 
+ * @param {[number]} b 
+ * @returns {[number]}
+ */
+function sub(a, b) {
+  return [
+    a[0] - b[0],
+    a[1] - b[1],
+    a[2] - b[2],
+  ]
+}
+
+class ArgumentError extends Error {
+  constructor(message) {
+    super(message)
+  }
+}
+
+// Plugin logic
 
 /** @type {Action} */
 let createShapeAction
@@ -52,32 +88,6 @@ BBPlugin.register("shaper", {
 })
 
 /**
- * @param {[number]} a 
- * @param {[number]} b 
- * @returns {[number]}
- */
-function add(a, b) {
-  return [
-    a[0] + b[0],
-    a[1] + b[1],
-    a[2] + b[2],
-  ]
-}
-
-/**
- * @param {[number]} a 
- * @param {[number]} b 
- * @returns {[number]}
- */
-function sub(a, b) {
-  return [
-    a[0] - b[0],
-    a[1] - b[1],
-    a[2] - b[2],
-  ]
-}
-
-/**
  * @typedef {object} CreateShapeSettings
  * @property {Axis} axis
  * @property {[number]} origin
@@ -88,82 +98,6 @@ function sub(a, b) {
  * @property {number} thickness
  * @property {boolean} fit_step
  */
-
-function openCreateShape() {
-  /** @type {CreateShapeSettings} */
-  let lastSettings = {
-    axis: "x",
-    origin: [ 8.0, 8.0, 8.0 ],
-    corners: 16,
-    diameter: 1.0,
-    is_hollow: true,
-    thickness: 0.25,
-    length: 4.0,
-    fit_step: false,
-  }
-  try {
-    lastSettings = JSON.parse(localStorage.getItem(CREATE_SHAPE_SETTINGS)) || lastSettings
-  } catch (ex) {}
-  
-  let dialog = Format.rotation_limit ? new Dialog({
-    title: "Shape settings",
-    id: "shape_settings",
-    form: {
-      axis:      { label: "Axis",      type: "select",   value: lastSettings.axis,      options: AXIS_OPTIONS },
-      origin:    { label: "Origin",    type: "vector",   value: lastSettings.origin     },
-      corners:   { label: "Corners",   type: "select",   value: lastSettings.corners,   options: CORNER_OPTIONS },
-      diameter:  { label: "Diameter",  type: "number",   value: lastSettings.diameter,  min: 0.0 },
-      length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
-      is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
-      thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
-      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
-    },
-    onConfirm(/** @type {CreateShapeSettings} */ form) {
-      dialog.hide()
-
-      try {
-        createShape(form)
-      } catch (ex) {
-        Blockbench.showMessageBox({
-          title: "Invalid argument",
-          message: ex.message,
-        })
-        return
-      }
-
-      localStorage.setItem(CREATE_SHAPE_SETTINGS, JSON.stringify(form))
-    }
-  }) : new Dialog({
-    title: "Shape settings",
-    id: "shape_settings",
-    form: {
-      axis:      { label: "Axis",      type: "select",   value: lastSettings.axis,      options: AXIS_OPTIONS },
-      origin:    { label: "Origin",    type: "vector",   value: lastSettings.origin     },
-      corners:   { label: "Corners",   type: "number",   value: lastSettings.corners    },
-      diameter:  { label: "Diameter",  type: "number",   value: lastSettings.diameter,  min: 0.0 },
-      length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
-      is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
-      thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
-      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
-    },
-    onConfirm(/** @type {CreateShapeSettings} */ form) {
-      dialog.hide()
-
-      try {
-        createShape(form)
-      } catch (ex) {
-        Blockbench.showMessageBox({
-          title: "Invalid argument",
-          message: ex.message,
-        })
-        return
-      }
-
-      localStorage.setItem(CREATE_SHAPE_SETTINGS, JSON.stringify(form))
-    }
-  })
-  dialog.show()
-}
 
 /**
  * @param {CreateShapeSettings} settings 
@@ -177,7 +111,7 @@ function createShape(settings) {
     throw new Error("Corners must be a multiple of 2")
   }
 
-  if (settings.corners < 6) {
+  if (settings.corners < 1) {
     throw new Error("Must have at least 6 corners")
   }
 
@@ -270,7 +204,7 @@ function createShape(settings) {
 
   if (settings.is_hollow) {
     // there are `n` cubes
-    // all cubes are the same size
+    // all cubes are the same size, with different offsets
     let halfExtent
     let offset
     switch (axis) {
@@ -293,7 +227,7 @@ function createShape(settings) {
     }
   } else {
     // there are `n / 2` cubes, since one cube can contribute to 2 exterior faces on the shape
-    // all cubes are the same size
+    // all cubes are the same size, with no offset
     let halfExtent
     switch (axis) {
       case "x":
@@ -315,6 +249,77 @@ function createShape(settings) {
   group.openUp().select()
 
   Undo.finishEdit("Create shape", { outliner: true, elements: selected, selection: true })
+}
+
+function openCreateShape() {
+  /** @type {CreateShapeSettings} */
+  let lastSettings = {
+    axis: "x",
+    origin: [ 8.0, 8.0, 8.0 ],
+    corners: 16,
+    diameter: 1.0,
+    is_hollow: true,
+    thickness: 0.25,
+    length: 4.0,
+    fit_step: false,
+  }
+  try {
+    lastSettings = JSON.parse(localStorage.getItem(CREATE_SHAPE_SETTINGS)) || lastSettings
+  } catch (ex) {}
+  
+  /**
+   * @param {CreateShapeSettings} form
+   */
+  function confirm(form) {
+    dialog.hide()
+
+    try {
+      createShape(form)
+    } catch (ex) {
+      if (ex instanceof ArgumentError) {
+        Blockbench.showMessageBox({
+          title: "Invalid argument",
+          message: ex.message,
+        })
+        return
+      } else {
+        throw ex
+      }
+    }
+
+    localStorage.setItem(CREATE_SHAPE_SETTINGS, JSON.stringify(form))
+  }
+
+  let dialog = Format.rotation_limit ? new Dialog({
+    title: "Shape settings",
+    id: "shape_settings",
+    form: {
+      axis:      { label: "Axis",      type: "select",   value: lastSettings.axis,      options: AXIS_OPTIONS },
+      origin:    { label: "Origin",    type: "vector",   value: lastSettings.origin     },
+      corners:   { label: "Corners",   type: "select",   value: lastSettings.corners,   options: CORNER_OPTIONS },
+      diameter:  { label: "Diameter",  type: "number",   value: lastSettings.diameter,  min: 0.0 },
+      length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
+      is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
+      thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
+      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
+    },
+    onConfirm: confirm,
+  }) : new Dialog({
+    title: "Shape settings",
+    id: "shape_settings",
+    form: {
+      axis:      { label: "Axis",      type: "select",   value: lastSettings.axis,      options: AXIS_OPTIONS },
+      origin:    { label: "Origin",    type: "vector",   value: lastSettings.origin     },
+      corners:   { label: "Corners",   type: "number",   value: lastSettings.corners    },
+      diameter:  { label: "Diameter",  type: "number",   value: lastSettings.diameter,  min: 0.0 },
+      length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
+      is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
+      thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
+      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
+    },
+    onConfirm: confirm,
+  })
+  dialog.show()
 }
 
 })()
