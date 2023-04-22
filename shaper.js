@@ -65,7 +65,7 @@ BBPlugin.register("shaper", {
   icon: "fa-shapes",
   author: "aecsocket",
   description: "Creates shapes out of cubes according to user-specified parameters",
-  version: "1.0.0",
+  version: "1.0.1",
   min_version: "3.0.5",
   variant: "both",
   onload() {
