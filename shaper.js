@@ -163,6 +163,7 @@ function createShape(settings) {
 
   const markerColor = Math.floor(Math.random() * markerColors.length)
   const thickness = settings.thickness
+  const halfThickness = thickness / 2.0
   // https://www.calculatorsoup.com/calculators/geometry-plane/polygon.php
   const side = 2.0 * radius * Math.tan(PI / numCorners)
   const halfSide = side / 2.0
@@ -193,6 +194,7 @@ function createShape(settings) {
           break
       }
     }
+    console.log(halfExtent)
     const min = sub(position, halfExtent)
     const max = add(position, halfExtent)
     const cube = new Cube({
@@ -215,16 +217,16 @@ function createShape(settings) {
     let offset
     switch (axis) {
       case "x":
-        halfExtent = [ halfLength, thickness, halfSide ]
-        offset = [ 0.0, radius - thickness, 0.0 ]
+        halfExtent = [ halfLength, halfThickness, halfSide ]
+        offset = [ 0.0, radius - halfThickness, 0.0 ]
         break
       case "y":
-        halfExtent = [ thickness, halfLength, halfSide ]
-        offset = [ radius - thickness, 0.0, 0.0 ]
+        halfExtent = [ halfThickness, halfLength, halfSide ]
+        offset = [ radius - halfThickness, 0.0, 0.0 ]
         break
       case "z":
-        halfExtent = [ thickness, halfSide, halfLength ]
-        offset = [ radius - thickness, 0.0, 0.0 ]
+        halfExtent = [ halfThickness, halfSide, halfLength ]
+        offset = [ radius - halfThickness, 0.0, 0.0 ]
         break
     }
 
