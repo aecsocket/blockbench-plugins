@@ -20,7 +20,7 @@ BBPlugin.register("uv_tools", {
   icon: "brush",
   author: "aecsocket",
   description: "Tools for manipulating UVs",
-  version: "1.2.3",
+  version: "1.3.0",
   min_version: "3.0.5",
   variant: "both",
   onload() {

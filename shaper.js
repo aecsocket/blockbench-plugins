@@ -64,7 +64,7 @@ BBPlugin.register("shaper", {
   title: "Shaper",
   icon: "fa-shapes",
   author: "aecsocket",
-  description: "Creates shapes",
+  description: "Creates shapes out of cubes according to user-specified parameters",
   version: "1.0.0",
   min_version: "3.0.5",
   variant: "both",
@@ -142,50 +142,54 @@ function createShape(settings) {
   // fitting automatically rotates the shape by half an angle step,
   // and adjusts the radius/diameter to make the shape still fit inside
   // the original radius/diameter that the user entered
-  const outerAngleStep = (2.0 * PI) / numCorners;
+  const angleStep = (2.0 * PI) / numCorners;
   let diameter
   let angleStart
   if (settings.fit_step) {
     let point1 = [ 1.0, 0.0 ]
-    let point2 = [ Math.cos(outerAngleStep), Math.sin(outerAngleStep) ]
+    let point2 = [ Math.cos(angleStep), Math.sin(angleStep) ]
     let pointM = [ (point1[0] + point2[0]) / 2.0, (point1[1] + point2[1]) / 2.0 ]
     let ratio = Math.sqrt(pointM[0] * pointM[0] + pointM[1] * pointM[1])
     diameter = settings.diameter * ratio
-    angleStart = outerAngleStep / 2.0
+    angleStart = angleStep / 2.0
   } else {
     diameter = settings.diameter
     angleStart = 0.0
   }
   const radius = diameter / 2.0
+
   const length = settings.length
   const halfLength = length / 2.0
+
   const markerColor = Math.floor(Math.random() * markerColors.length)
   const thickness = settings.thickness
   // https://www.calculatorsoup.com/calculators/geometry-plane/polygon.php
-  const sideLength = 2.0 * radius * Math.tan(PI / numCorners)
-  const sideHalfLength = sideLength / 2.0
-  const innerAngleStep = ((numCorners - 2) * PI) / numCorners;
+  const side = 2.0 * radius * Math.tan(PI / numCorners)
+  const halfSide = side / 2.0
 
   function addCube(halfExtent, position, angle) {
     // normalize the rotation
     while (angle >= HALF_PI) {
-      // every 90 degrees, rotate along the...
       angle -= HALF_PI
+      // every 90 degrees, rotate the half extents by 90 degrees clockwise
+      // apply transform (y, -x)
+      // rotate along the...
       switch (axis) {
         case "x":
           // y/z plane
+          // we DO negate position, but do NOT negate half extents
           halfExtent = [ halfExtent[0], halfExtent[2], halfExtent[1] ]
-          position = [ position[0], position[2], position[1] ]
+          position = [ position[0], position[2], -position[1] ]
           break
         case "y":
           // x/z plane
           halfExtent = [ halfExtent[2], halfExtent[1], halfExtent[0] ]
-          position = [ position[2], position[1], position[0] ]
+          position = [ position[2], position[1], -position[0] ]
           break
         case "z":
           // x/y plane
           halfExtent = [ halfExtent[1], halfExtent[0], halfExtent[2] ]
-          position = [ position[1], position[0], position[2] ]
+          position = [ position[1], -position[0], position[2] ]
           break
       }
     }
@@ -211,21 +215,21 @@ function createShape(settings) {
     let offset
     switch (axis) {
       case "x":
-        halfExtent = [ halfLength, sideLength, thickness ]
-        offset = [ 0.0, diameter - thickness, 0.0 ]
+        halfExtent = [ halfLength, thickness, halfSide ]
+        offset = [ 0.0, radius - thickness, 0.0 ]
         break
       case "y":
-        halfExtent = [ sideLength, halfLength, thickness ]
-        offset = [ diameter - thickness, 0.0, 0.0 ]
+        halfExtent = [ thickness, halfLength, halfSide ]
+        offset = [ radius - thickness, 0.0, 0.0 ]
         break
       case "z":
-        halfExtent = [ sideLength, thickness, halfLength ]
-        offset = [ diameter - thickness, 0.0, 0.0 ]
+        halfExtent = [ thickness, halfSide, halfLength ]
+        offset = [ radius - thickness, 0.0, 0.0 ]
         break
     }
 
     for (let i = 0; i < numCorners; i++) {
-      addCube(halfExtent, offset, innerAngleStep * i + angleStart)
+      addCube(halfExtent, offset, angleStep * i + angleStart)
     }
   } else {
     // there are `n / 2` cubes, since one cube can contribute to 2 exterior faces on the shape
@@ -233,18 +237,18 @@ function createShape(settings) {
     let halfExtent
     switch (axis) {
       case "x":
-        halfExtent = [ halfLength, sideHalfLength, radius ]
+        halfExtent = [ halfLength, radius, halfSide ]
         break
       case "y":
-        halfExtent = [ sideHalfLength, halfLength, radius ]
+        halfExtent = [ radius, halfLength, halfSide ]
         break
       case "z":
-        halfExtent = [ sideHalfLength, radius, halfLength ]
+        halfExtent = [ radius, halfSide, halfLength ]
         break
     }
 
     for (let i = 0; i < numCorners / 2; i++) {
-      addCube(halfExtent, [ 0.0, 0.0, 0.0 ], innerAngleStep * i + angleStart)
+      addCube(halfExtent, [ 0.0, 0.0, 0.0 ], angleStep * i + angleStart)
     }
   }
 
@@ -303,9 +307,18 @@ function openCreateShape() {
       length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
       is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
       thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
-      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
+      fit_step:  { label: "Fit to next half-angle", type: "checkbox", value: lastSettings.fit_step },
     },
-    onConfirm: confirm,
+    onConfirm(/** @type {CreateShapeSettings} */ form) {
+      if (form.corners > 8 && form.fit_step) {
+        Blockbench.showMessageBox({
+          title: "Invalid argument",
+          message: "Cannot use 'Fit to next half-angle' with more than 8 corners in a Java model",
+        })
+        return
+      }
+      confirm(form)
+    },
   }) : new Dialog({
     title: "Shape settings",
     id: "shape_settings",
@@ -317,7 +330,7 @@ function openCreateShape() {
       length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
       is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
       thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
-      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
+      fit_step:  { label: "Fit to next half-angle", type: "checkbox", value: lastSettings.fit_step },
     },
     onConfirm: confirm,
   })
