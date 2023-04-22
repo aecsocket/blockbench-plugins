@@ -9,14 +9,15 @@ const AXIS_OPTIONS = {
   y: "Y",
   z: "Z",
 }
+const CORNER_OPTIONS = {
+  8: "8 (octagon)",
+  16: "16 (hexadecagon)",
+}
 
-const AXIS = "shaper:axis"
-const ORIGIN = "shaper:origin"
-const CORNERS = "shaper:corners"
-const DIAMETER = "shaper:diameter"
-const IS_HOLLOW = "shaper:is_hollow"
-const THICKNESS = "shaper:thickness"
-const LENGTH = "shaper:length"
+const CREATE_SHAPE_SETTINGS = "shaper:create_shape_settings"
+
+const PI = Math.PI
+const HALF_PI = PI / 2.0
 
 /** @type {Action} */
 let createShapeAction
@@ -51,43 +52,77 @@ BBPlugin.register("shaper", {
 })
 
 /**
- * @typedef {object} CreateShapeForm
+ * @param {[number]} a 
+ * @param {[number]} b 
+ * @returns {[number]}
+ */
+function add(a, b) {
+  return [
+    a[0] + b[0],
+    a[1] + b[1],
+    a[2] + b[2],
+  ]
+}
+
+/**
+ * @param {[number]} a 
+ * @param {[number]} b 
+ * @returns {[number]}
+ */
+function sub(a, b) {
+  return [
+    a[0] - b[0],
+    a[1] - b[1],
+    a[2] - b[2],
+  ]
+}
+
+/**
+ * @typedef {object} CreateShapeSettings
  * @property {Axis} axis
  * @property {[number]} origin
  * @property {number} corners
  * @property {number} diameter
+ * @property {number} length
  * @property {boolean} is_hollow
  * @property {number} thickness
- * @property {number} length
+ * @property {boolean} fit_step
  */
 
 function openCreateShape() {
-  let dialog = new Dialog({
+  /** @type {CreateShapeSettings} */
+  let lastSettings = {
+    axis: "x",
+    origin: [ 8.0, 8.0, 8.0 ],
+    corners: 16,
+    diameter: 1.0,
+    is_hollow: true,
+    thickness: 0.25,
+    length: 4.0,
+    fit_step: false,
+  }
+  try {
+    lastSettings = JSON.parse(localStorage.getItem(CREATE_SHAPE_SETTINGS)) || lastSettings
+  } catch (ex) {}
+  
+  let dialog = Format.rotation_limit ? new Dialog({
     title: "Shape settings",
     id: "shape_settings",
     form: {
-      axis: { label: "Axis", type: "select", options: AXIS_OPTIONS, value: localStorage.getItem(AXIS) || "x" },
-      origin: { label: "Origin", type: "vector", value: localStorage.getItem(ORIGIN) || [ 8.0, 8.0, 8.0 ] },
-      corners: { label: "Corners", type: "number", value: localStorage.getItem(CORNERS) || 16 },
-      diameter: { label: "Diameter", type: "number", value: localStorage.getItem(DIAMETER) || 1.0 },
-      is_hollow: { label: "Is Hollow", type: "checkbox", value: localStorage.getItem(IS_HOLLOW) === "true" || false },
-      thickness: { label: "Thickness", type: "number", value: localStorage.getItem(THICKNESS) || 0.25 },
-      length: { label: "Length", type: "number", value: localStorage.getItem(LENGTH) || 4.0 },
+      axis:      { label: "Axis",      type: "select",   value: lastSettings.axis,      options: AXIS_OPTIONS },
+      origin:    { label: "Origin",    type: "vector",   value: lastSettings.origin     },
+      corners:   { label: "Corners",   type: "select",   value: lastSettings.corners,   options: CORNER_OPTIONS },
+      diameter:  { label: "Diameter",  type: "number",   value: lastSettings.diameter,  min: 0.0 },
+      length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
+      is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
+      thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
+      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
     },
-    onConfirm(/** @type {CreateShapeForm} */ form) {
+    onConfirm(/** @type {CreateShapeSettings} */ form) {
       dialog.hide()
 
       try {
-        console.dir(form)
-        createShape({
-          axis: form.axis,
-          origin: form.origin,
-          corners: form.corners,
-          diameter: form.diameter,
-          is_hollow: form.is_hollow,
-          thickness: form.thickness,
-          length: form.length,
-        })
+        createShape(form)
       } catch (ex) {
         Blockbench.showMessageBox({
           title: "Invalid argument",
@@ -96,20 +131,42 @@ function openCreateShape() {
         return
       }
 
-      localStorage.setItem(AXIS, form.axis)
-      localStorage.setItem(ORIGIN, form.origin)
-      localStorage.setItem(CORNERS, form.corners.toString())
-      localStorage.setItem(DIAMETER, form.diameter.toString())
-      localStorage.setItem(IS_HOLLOW, form.is_hollow.toString())
-      localStorage.setItem(THICKNESS, form.thickness.toString())
-      localStorage.setItem(LENGTH, form.length.toString())
+      localStorage.setItem(CREATE_SHAPE_SETTINGS, JSON.stringify(form))
+    }
+  }) : new Dialog({
+    title: "Shape settings",
+    id: "shape_settings",
+    form: {
+      axis:      { label: "Axis",      type: "select",   value: lastSettings.axis,      options: AXIS_OPTIONS },
+      origin:    { label: "Origin",    type: "vector",   value: lastSettings.origin     },
+      corners:   { label: "Corners",   type: "number",   value: lastSettings.corners    },
+      diameter:  { label: "Diameter",  type: "number",   value: lastSettings.diameter,  min: 0.0 },
+      length:    { label: "Length",    type: "number",   value: lastSettings.length,    min: 0.0 },
+      is_hollow: { label: "Is Hollow", type: "checkbox", value: lastSettings.is_hollow  },
+      thickness: { label: "Thickness", type: "number",   value: lastSettings.thickness, min: 0.0 },
+      fit_step:  { label: "Fit to angle step",  type: "checkbox", value: lastSettings.fit_step },
+    },
+    onConfirm(/** @type {CreateShapeSettings} */ form) {
+      dialog.hide()
+
+      try {
+        createShape(form)
+      } catch (ex) {
+        Blockbench.showMessageBox({
+          title: "Invalid argument",
+          message: ex.message,
+        })
+        return
+      }
+
+      localStorage.setItem(CREATE_SHAPE_SETTINGS, JSON.stringify(form))
     }
   })
   dialog.show()
 }
 
 /**
- * @param {CreateShapeForm} settings 
+ * @param {CreateShapeSettings} settings 
  */
 function createShape(settings) {
   if (!(AXIS_OPTIONS.hasOwnProperty(settings.axis))) {
@@ -124,23 +181,16 @@ function createShape(settings) {
     throw new Error("Must have at least 6 corners")
   }
 
-  if (Format.rotation_limit) {
-    const innerAngle = (settings.corners - 2) * 180.0
-    if (innerAngle % 22.5 !== 0) {
-      throw new Error("Inner angle is of invalid multiple in this format")
-    }
-  }
-
   if (settings.diameter <= 0.0) {
     throw new Error("Diameter must be greater than 0.0")
   }
 
-  if (settings.is_hollow && settings.thickness > settings.diameter / 2.0) {
-    throw new Error("Thickness must be less than or equal to the radius")
-  }
-
   if (settings.length <= 0.0) {
     throw new Error("Length must be greater than 0.0")
+  }
+
+  if (settings.is_hollow && settings.thickness > settings.diameter / 2.0) {
+    throw new Error("Thickness must be less than or equal to the radius")
   }
 
   Undo.initEdit({ outliner: true, elements: [] })
@@ -149,69 +199,117 @@ function createShape(settings) {
  
   // generate a `numCorners`-sided polygon
   const axis = settings.axis
+  const origin = settings.origin
   const numCorners = settings.corners
-  const diameter = settings.diameter
+
+  // calculate fitting
+  // fitting automatically rotates the shape by half an angle step,
+  // and adjusts the radius/diameter to make the shape still fit inside
+  // the original radius/diameter that the user entered
+  const outerAngleStep = (2.0 * PI) / numCorners;
+  let diameter
+  let angleStart
+  if (settings.fit_step) {
+    let point1 = [ 1.0, 0.0 ]
+    let point2 = [ Math.cos(outerAngleStep), Math.sin(outerAngleStep) ]
+    let pointM = [ (point1[0] + point2[0]) / 2.0, (point1[1] + point2[1]) / 2.0 ]
+    let ratio = Math.sqrt(pointM[0] * pointM[0] + pointM[1] * pointM[1])
+    diameter = settings.diameter * ratio
+    angleStart = outerAngleStep / 2.0
+  } else {
+    diameter = settings.diameter
+    angleStart = 0.0
+  }
   const radius = diameter / 2.0
   const length = settings.length
   const halfLength = length / 2.0
+  const markerColor = Math.floor(Math.random() * markerColors.length)
+  const thickness = settings.thickness
   // https://www.calculatorsoup.com/calculators/geometry-plane/polygon.php
-  const sideLength = 2.0 * radius * Math.tan(Math.PI / numCorners)
+  const sideLength = 2.0 * radius * Math.tan(PI / numCorners)
   const sideHalfLength = sideLength / 2.0
+  const innerAngleStep = ((numCorners - 2) * PI) / numCorners;
 
-  for (let i = 0; i < numCorners; i++) {
-    // generate a 2D slice through the polygon in the xy plane, with (0, 0) being the center
-    // note that this does not actually map to the model's xy axes; this is just local coordinates
-    const x = Math.cos(i / numCorners * 2.0 * Math.PI) * radius
-    const y = Math.sin(i / numCorners * 2.0 * Math.PI) * radius
-
-    let cornerMinA
-    let cornerMaxA
-    let cornerMinB
-    let cornerMaxB
-    switch (axis) {
-      case "x":
-        // assuming that i = 0,
-        // minA and maxA will lie on (?, x * radius, y * radius)
-        // minB and maxB will lie on the opposite side of that
-        cornerMinA = [ -halfLength,  x,  y ]
-        cornerMaxA = [  halfLength,  x,  y ]
-        cornerMinB = [ -halfLength, -x, -y ]
-        cornerMaxB = [  halfLength, -x, -y ]
-        break
-      case "y":
-        cornerMinA = [  x, -halfLength,  y ]
-        cornerMaxA = [  x,  halfLength,  y ]
-        cornerMinB = [ -x, -halfLength, -y ]
-        cornerMaxB = [ -x,  halfLength, -y ]
-        break
-      case "z":
-        cornerMinA = [  x,  y, -halfLength ]
-        cornerMaxA = [  x,  y,  halfLength ]
-        cornerMinB = [ -x, -y, -halfLength ]
-        cornerMaxB = [ -x, -y,  halfLength ]
-        break
+  function addCube(halfExtent, position, angle) {
+    // normalize the rotation
+    while (angle >= HALF_PI) {
+      // every 90 degrees, rotate along the...
+      angle -= HALF_PI
+      switch (axis) {
+        case "x":
+          // y/z plane
+          halfExtent = [ halfExtent[0], halfExtent[2], halfExtent[1] ]
+          position = [ position[0], position[2], position[1] ]
+          break
+        case "y":
+          // x/z plane
+          halfExtent = [ halfExtent[2], halfExtent[1], halfExtent[0] ]
+          position = [ position[2], position[1], position[0] ]
+          break
+        case "z":
+          // x/y plane
+          halfExtent = [ halfExtent[1], halfExtent[0], halfExtent[2] ]
+          position = [ position[1], position[0], position[2] ]
+          break
+      }
     }
-
-    new Cube({
+    const min = sub(position, halfExtent)
+    const max = add(position, halfExtent)
+    const cube = new Cube({
       name: group.name,
-      from: cornerMinA.slice(),
-      to: cornerMaxB.slice(),
+      from: add(origin, min),
+      to: add(origin, max),
+      rotation: {
+        origin: origin.slice(),
+        axis: axis,
+        angle: angle * (180.0 / PI), // radians to degrees
+      },
     }).addTo(group).init()
+    cube.setColor(markerColor)
   }
 
-  function addCube(from, to, origin, axis, rotation) {
-    while (rotation < -45.0) {
-      rotation += 90.0
+  if (settings.is_hollow) {
+    // there are `n` cubes
+    // all cubes are the same size
+    let halfExtent
+    let offset
+    switch (axis) {
+      case "x":
+        halfExtent = [ halfLength, sideLength, thickness ]
+        offset = [ 0.0, diameter - thickness, 0.0 ]
+        break
+      case "y":
+        halfExtent = [ sideLength, halfLength, thickness ]
+        offset = [ diameter - thickness, 0.0, 0.0 ]
+        break
+      case "z":
+        halfExtent = [ sideLength, thickness, halfLength ]
+        offset = [ diameter - thickness, 0.0, 0.0 ]
+        break
     }
-    while (rotation > 45) {
-      rotation -= 90.0
+
+    for (let i = 0; i < numCorners; i++) {
+      addCube(halfExtent, offset, innerAngleStep * i + angleStart)
     }
-    new Cube({
-      name: group.name,
-      from: from.slice(),
-      to: to.slice(),
-      rotation: { origin: origin.slice(), axis: axis, angle: rotation },
-    }).addTo(group).init()
+  } else {
+    // there are `n / 2` cubes, since one cube can contribute to 2 exterior faces on the shape
+    // all cubes are the same size
+    let halfExtent
+    switch (axis) {
+      case "x":
+        halfExtent = [ halfLength, sideHalfLength, radius ]
+        break
+      case "y":
+        halfExtent = [ sideHalfLength, halfLength, radius ]
+        break
+      case "z":
+        halfExtent = [ sideHalfLength, radius, halfLength ]
+        break
+    }
+
+    for (let i = 0; i < numCorners / 2; i++) {
+      addCube(halfExtent, [ 0.0, 0.0, 0.0 ], innerAngleStep * i + angleStart)
+    }
   }
 
   group.openUp().select()
