@@ -194,7 +194,6 @@ function createShape(settings) {
           break
       }
     }
-    console.log(halfExtent)
     const min = sub(position, halfExtent)
     const max = add(position, halfExtent)
     const cube = new Cube({
