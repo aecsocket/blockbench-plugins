@@ -1,22 +1,10 @@
 (function() {
 
-// Utils
+// Math utils
 
 /**
  * @typedef {"x" | "y" | "z"} Axis
  */
-
-const AXIS_OPTIONS = {
-  x: "X",
-  y: "Y",
-  z: "Z",
-}
-const CORNER_OPTIONS = {
-  8: "8 (octagon)",
-  16: "16 (hexadecagon)",
-}
-
-const CREATE_SHAPE_SETTINGS = "shaper:create_shape_settings"
 
 const PI = Math.PI
 const HALF_PI = PI / 2.0
@@ -47,6 +35,20 @@ function sub(a, b) {
   ]
 }
 
+// Form utils
+
+const AXIS_OPTIONS = {
+  x: "X",
+  y: "Y",
+  z: "Z",
+}
+const CORNER_OPTIONS = {
+  8: "8 (octagon)",
+  16: "16 (hexadecagon)",
+}
+
+const CREATE_SHAPE_SETTINGS = "shaper:create_shape_settings"
+
 class ArgumentError extends Error {
   constructor(message) {
     super(message)
@@ -70,8 +72,8 @@ BBPlugin.register("shaper", {
     createShapeAction = new Action("create_shape", {
       name: "Create Shape",
       icon: "fa-shapes",
-      category: "edit",
-      click: evt => {
+      description: "Creates the cubes for a shape with specified parameters",
+      click() {
         if (!Format.rotate_cubes) {
           Blockbench.showQuickMessage("Cannot create shapes in formats without cube rotation")
           return
@@ -290,7 +292,7 @@ function openCreateShape() {
     localStorage.setItem(CREATE_SHAPE_SETTINGS, JSON.stringify(form))
   }
 
-  let dialog = Format.rotation_limit ? new Dialog({
+  const dialog = Format.rotation_limit ? new Dialog({
     title: "Shape settings",
     id: "shape_settings",
     form: {
