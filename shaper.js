@@ -194,6 +194,13 @@ function createShape(settings) {
           break
       }
     }
+
+    // angle is now < 90.0 degrees
+    if (angle > HALF_PI / 2.0) {
+      // normalize angle from [0..90.0] to [-45.0..45.0]
+      angle = angle - HALF_PI
+    }
+
     const min = sub(position, halfExtent)
     const max = add(position, halfExtent)
     const cube = new Cube({
