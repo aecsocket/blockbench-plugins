@@ -104,27 +104,27 @@ BBPlugin.register("shaper", {
  */
 function createShape(settings) {
   if (!(AXIS_OPTIONS.hasOwnProperty(settings.axis))) {
-    throw new Error("Axis must be `x`, `y` or `z`")
+    throw new ArgumentError("Axis must be `x`, `y` or `z`")
   }
 
   if (settings.corners % 2 !== 0) {
-    throw new Error("Corners must be a multiple of 2")
+    throw new ArgumentError("Corners must be a multiple of 2")
   }
 
   if (settings.corners < 1) {
-    throw new Error("Must have at least 6 corners")
+    throw new ArgumentError("Must have at least 6 corners")
   }
 
   if (settings.diameter <= 0.0) {
-    throw new Error("Diameter must be greater than 0.0")
+    throw new ArgumentError("Diameter must be greater than 0.0")
   }
 
   if (settings.length <= 0.0) {
-    throw new Error("Length must be greater than 0.0")
+    throw new ArgumentError("Length must be greater than 0.0")
   }
 
   if (settings.is_hollow && settings.thickness > settings.diameter / 2.0) {
-    throw new Error("Thickness must be less than or equal to the radius")
+    throw new ArgumentError("Thickness must be less than or equal to the radius")
   }
 
   Undo.initEdit({ outliner: true, elements: [] })
