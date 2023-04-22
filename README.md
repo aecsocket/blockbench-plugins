@@ -5,7 +5,10 @@ A collection of generic Blockbench plugins
 ## Installation
 
 - Download one of the `.js` files to your computer
-- Drag and drop the `.js` file into an open Blockbench window
+  - Open the file in GitHub and either:
+    - Click on `...` and click `Download`
+    - If that is not available, click `Raw`, right-click on the page, and click `Save as`, and save it as a `.js` file
+- Drag and drop the downloaded `.js` file into an open Blockbench window
 
 ## Plugins
 
